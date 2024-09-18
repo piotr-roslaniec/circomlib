@@ -88,7 +88,14 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
             }
             environment = exit.environment;
         }
-        (constraints_declared, tags_modified, signals_declared, reports, environment, modified_variables)
+        (
+            constraints_declared,
+            tags_modified,
+            signals_declared,
+            reports,
+            environment,
+            modified_variables,
+        )
     }
     let file_id = entry_information.file_id;
     let mut reports = ReportCollection::new();
@@ -108,26 +115,26 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
             } else if let VariableType::AnonymousComponent = xtype {
                 environment.add_component(name, Unknown);
                 signals_declared = true;
-            } else { // it is a variable
-                let is_array = dimensions.len() > 0;
-                environment.add_variable(name, (Known, is_array));                
+            } else {
+                // it is a variable
+                let is_array = !dimensions.is_empty();
+                environment.add_variable(name, (Known, is_array));
                 modified_variables.insert(name.clone());
             }
             if let VariableType::AnonymousComponent = xtype {
                 // in this case the dimension is ukn
-            } else{
+            } else {
                 for dimension in dimensions {
                     if tag(dimension, &environment) == Unknown {
                         add_report(
-                                ReportCode::UnknownDimension,
-                                dimension.get_meta(),
-                                file_id,
-                                &mut reports,
-                            );
-                        }
+                            ReportCode::UnknownDimension,
+                            dimension.get_meta(),
+                            file_id,
+                            &mut reports,
+                        );
+                    }
                 }
             }
-        
         }
         Substitution { meta, var, access, op, rhe, .. } => {
             let simplified_elem = simplify_symbol(&environment, var, access);
@@ -142,10 +149,13 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
                 }
             }
             if simplified_elem == Variable {
-                let (value, is_array) = environment.get_mut_variable_or_break(var, file!(), line!());
-                if !*is_array { // if it is a single variable we always update
+                let (value, is_array) =
+                    environment.get_mut_variable_or_break(var, file!(), line!());
+                if !*is_array {
+                    // if it is a single variable we always update
                     *value = max(expression_tag, access_tag);
-                } else if *value == Known{ // if not, if it was ukn it remains ukn
+                } else if *value == Known {
+                    // if not, if it was ukn it remains ukn
                     *value = max(expression_tag, access_tag);
                 }
                 modified_variables.insert(var.clone());
@@ -160,11 +170,21 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
             } else if simplified_elem == SignalTag {
                 tags_modified = true;
                 if expression_tag == Unknown {
-                    add_report(ReportCode::NonValidTagAssignment, rhe.get_meta(), file_id, &mut reports);       
+                    add_report(
+                        ReportCode::NonValidTagAssignment,
+                        rhe.get_meta(),
+                        file_id,
+                        &mut reports,
+                    );
                 }
                 if access_tag == Unknown {
-                    add_report(ReportCode::NonValidTagAssignment, rhe.get_meta(), file_id, &mut reports);
-                }   
+                    add_report(
+                        ReportCode::NonValidTagAssignment,
+                        rhe.get_meta(),
+                        file_id,
+                        &mut reports,
+                    );
+                }
             } else if *op == AssignOp::AssignConstraintSignal {
                 constraints_declared = true;
                 if is_non_quadratic(rhe, &environment) {
@@ -175,7 +195,7 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
                 }
             }
         }
-        UnderscoreSubstitution {   op, rhe, .. } => {
+        UnderscoreSubstitution { op, rhe, .. } => {
             let _expression_tag = tag(rhe, &environment);
             if *op == AssignOp::AssignConstraintSignal {
                 constraints_declared = true;
@@ -183,7 +203,7 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
                     add_report(ReportCode::NonQuadratic, rhe.get_meta(), file_id, &mut reports);
                 }
             }
-        },
+        }
         ConstraintEquality { lhe, rhe, .. } => {
             constraints_declared = true;
             if is_non_quadratic(lhe, &environment) {
@@ -196,7 +216,7 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
         IfThenElse { cond, if_case, else_case, .. } => {
             let tag_cond = tag(cond, &environment);
             let new_entry_else_case =
-                EntryInformation { environment: environment.clone(), file_id};
+                EntryInformation { environment: environment.clone(), file_id };
             let new_entry_if_case = EntryInformation { environment, file_id };
             let if_case_info = analyze(if_case, new_entry_if_case);
             let else_case_info = if let Option::Some(else_stmt) = else_case {
@@ -206,8 +226,8 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
                     constraints_declared: false,
                     environment: new_entry_else_case.environment,
                     reports: ReportCollection::with_capacity(0),
-                    modified_variables : HashSet::new(),
-                    tags_modified : false,
+                    modified_variables: HashSet::new(),
+                    tags_modified: false,
                     signals_declared: false,
                 }
             };
@@ -227,14 +247,14 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
                 Environment::merge(if_case_info.environment, else_case_info.environment, |a, b| {
                     max(a, b)
                 });
-            if tag_cond == Unknown{
-                for var in &modified_variables{
-                    if environment.has_variable(var){
-                        let (value, _is_array) = environment.get_mut_variable_or_break(var, file!(), line!());
+            if tag_cond == Unknown {
+                for var in &modified_variables {
+                    if environment.has_variable(var) {
+                        let (value, _is_array) =
+                            environment.get_mut_variable_or_break(var, file!(), line!());
                         *value = Unknown;
                     }
                 }
-
             }
             if tag_cond == Unknown && constraints_declared {
                 add_report(
@@ -245,35 +265,27 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
                 );
             }
             if tag_cond == Unknown && tags_modified {
-                add_report(
-                    ReportCode::UnreachableTags,
-                    cond.get_meta(),
-                    file_id,
-                    &mut reports,
-                );
+                add_report(ReportCode::UnreachableTags, cond.get_meta(), file_id, &mut reports);
             }
             if tag_cond == Unknown && signals_declared {
-                add_report(
-                    ReportCode::UnreachableSignals,
-                    cond.get_meta(),
-                    file_id,
-                    &mut reports,
-                );
+                add_report(ReportCode::UnreachableSignals, cond.get_meta(), file_id, &mut reports);
             }
         }
         While { cond, stmt, .. } => {
             let mut entry_info = environment.clone();
-            let mut entry = EntryInformation { file_id, environment};
+            let mut entry = EntryInformation { file_id, environment };
             let mut exit = analyze(stmt, entry);
-            let mut modified = check_modified(entry_info, &mut exit.environment, &exit.modified_variables);
+            let mut modified =
+                check_modified(entry_info, &mut exit.environment, &exit.modified_variables);
             environment = exit.environment;
-            while modified{
+            while modified {
                 entry_info = environment.clone();
-                entry = EntryInformation { file_id, environment};
+                entry = EntryInformation { file_id, environment };
                 exit = analyze(stmt, entry);
-                modified = check_modified(entry_info, &mut exit.environment, &exit.modified_variables);
+                modified =
+                    check_modified(entry_info, &mut exit.environment, &exit.modified_variables);
                 environment = exit.environment;
-            };
+            }
 
             constraints_declared = exit.constraints_declared;
             tags_modified = exit.tags_modified;
@@ -283,13 +295,14 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
             }
             let tag_out = tag(cond, &environment);
 
-            if tag_out == Unknown{
-                for var in &exit.modified_variables{
-                    if environment.has_variable(var){
-                        let (value, _is_array) = environment.get_mut_variable_or_break(var, file!(), line!());
+            if tag_out == Unknown {
+                for var in &exit.modified_variables {
+                    if environment.has_variable(var) {
+                        let (value, _is_array) =
+                            environment.get_mut_variable_or_break(var, file!(), line!());
                         *value = Unknown;
                     }
-                }   
+                }
             }
 
             if constraints_declared && tag_out == Unknown {
@@ -301,25 +314,16 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
                 );
             }
             if tag_out == Unknown && tags_modified {
-                add_report(
-                    ReportCode::UnreachableTags,
-                    cond.get_meta(),
-                    file_id,
-                    &mut reports,
-                );
+                add_report(ReportCode::UnreachableTags, cond.get_meta(), file_id, &mut reports);
             }
             if tag_out == Unknown && signals_declared {
-                add_report(
-                    ReportCode::UnreachableSignals,
-                    cond.get_meta(),
-                    file_id,
-                    &mut reports,
-                );
+                add_report(ReportCode::UnreachableSignals, cond.get_meta(), file_id, &mut reports);
             }
         }
         Block { stmts, .. } => {
             environment.add_variable_block();
-            let (nc, tags, ns, nr, ne, nm) = iterate_statements(stmts, reports, environment, file_id);
+            let (nc, tags, ns, nr, ne, nm) =
+                iterate_statements(stmts, reports, environment, file_id);
             constraints_declared = nc;
             reports = nr;
             environment = ne;
@@ -329,7 +333,8 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
             signals_declared = ns;
         }
         InitializationBlock { initializations, .. } => {
-            let (nc, tags, ns, nr, ne, nm) = iterate_statements(initializations, reports, environment, file_id);
+            let (nc, tags, ns, nr, ne, nm) =
+                iterate_statements(initializations, reports, environment, file_id);
             constraints_declared = nc;
             reports = nr;
             environment = ne;
@@ -339,8 +344,13 @@ fn analyze(stmt: &Statement, entry_information: EntryInformation) -> ExitInforma
         }
         _ => {}
     }
-    ExitInformation { 
-        reports, environment, constraints_declared, modified_variables, tags_modified, signals_declared
+    ExitInformation {
+        reports,
+        environment,
+        constraints_declared,
+        modified_variables,
+        tags_modified,
+        signals_declared,
     }
 }
 
@@ -352,19 +362,17 @@ fn tag(expression: &Expression, environment: &Environment) -> Tag {
         Variable { name, access, .. } => {
             let mut symbol_tag = if environment.has_variable(name) {
                 let (tag, is_array) = environment.get_variable_or_break(name, file!(), line!());
-                if *is_array{
+                if *is_array {
                     Known
-                } else{
+                } else {
                     *tag
                 }
             } else if environment.has_component(name) {
                 *environment.get_component_or_break(name, file!(), line!())
+            } else if environment.has_intermediate(name) && !all_array_are_accesses(access) {
+                Known /* In this case, it is a tag. */
             } else {
-                if environment.has_intermediate(name) && !all_array_are_accesses(access) {
-                    Known /* In this case, it is a tag. */
-                } else{
                 *environment.get_intermediate_or_break(name, file!(), line!())
-                }
             };
             let mut index = 0;
             loop {
@@ -403,7 +411,9 @@ fn tag(expression: &Expression, environment: &Environment) -> Tag {
         }
         PrefixOp { rhe, .. } => tag(rhe, environment),
         ParallelOp { rhe, .. } => tag(rhe, environment),
-        _ => {unreachable!("Anonymous calls should not be reachable at this point."); }
+        _ => {
+            unreachable!("Anonymous calls should not be reachable at this point.");
+        }
     }
 }
 // ***************************** Compare two variable states ********************
@@ -412,14 +422,15 @@ fn check_modified(
     initial_state: Environment,
     final_state: &mut Environment,
     modified_variables: &HashSet<String>,
-) -> bool{
+) -> bool {
     let mut modified = false;
-    for v in modified_variables{
-        if initial_state.has_variable(v) && final_state.has_variable(v){
+    for v in modified_variables {
+        if initial_state.has_variable(v) && final_state.has_variable(v) {
             let t_ini = initial_state.get_variable_or_break(v, file!(), line!());
             let t_fin = final_state.get_mut_variable_or_break(v, file!(), line!());
-            if *t_ini != *t_fin{
-                if t_fin.0 == Tag::Unknown{ // in other case we can enter in loops
+            if *t_ini != *t_fin {
+                if t_fin.0 == Tag::Unknown {
+                    // in other case we can enter in loops
                     modified = true;
                 }
                 *t_fin = max(*t_ini, *t_fin);
@@ -431,13 +442,13 @@ fn check_modified(
 
 fn all_array_are_accesses(accesses: &[Access]) -> bool {
     let mut i = 0;
-    let mut all_array_accesses = true; 
+    let mut all_array_accesses = true;
     while i < accesses.len() && all_array_accesses {
         let aux = accesses.get(i).unwrap();
         if let Access::ComponentAccess(_) = aux {
             all_array_accesses = false;
         }
-        i = i + 1;
+        i += 1;
     }
     all_array_accesses
 }
@@ -468,7 +479,7 @@ enum Symbol {
     Signal,
     Component,
     Variable,
-    SignalTag
+    SignalTag,
 }
 fn simplify_symbol(environment: &Environment, name: &str, access: &[Access]) -> Symbol {
     use Symbol::*;
@@ -530,8 +541,10 @@ fn unknown_index(exp: &Expression, environment: &Environment) -> bool {
             }
             (false, bucket)
         }
-        UniformArray{ value, dimension, .. } => (false, vec![value.as_ref(), dimension.as_ref()]),
-        _ => {unreachable!("Anonymous calls should not be reachable at this point."); }
+        UniformArray { value, dimension, .. } => (false, vec![value.as_ref(), dimension.as_ref()]),
+        _ => {
+            unreachable!("Anonymous calls should not be reachable at this point.");
+        }
     };
     let mut has_unknown_index = init;
     let mut index = 0;
@@ -539,7 +552,7 @@ fn unknown_index(exp: &Expression, environment: &Environment) -> bool {
         if index == rec.len() || has_unknown_index {
             break has_unknown_index;
         }
-        has_unknown_index = unknown_index(&rec[index], environment);
+        has_unknown_index = unknown_index(rec[index], environment);
         index += 1;
     }
 }

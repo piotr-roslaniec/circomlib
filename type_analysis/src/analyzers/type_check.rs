@@ -11,7 +11,11 @@ use std::collections::HashSet;
 
 type ArithmeticType = usize;
 type ComponentInfo = (Option<String>, ArithmeticType);
-type TypingEnvironment = CircomEnvironment<ComponentInfo,  (ArithmeticType, std::vec::Vec<std::string::String>), ArithmeticType>;
+type TypingEnvironment = CircomEnvironment<
+    ComponentInfo,
+    (ArithmeticType, std::vec::Vec<std::string::String>),
+    ArithmeticType,
+>;
 type CallRegister = TypeRegister<ArithmeticType>;
 
 struct AnalysisInformation {
@@ -74,12 +78,11 @@ pub fn type_check(program_archive: &ProgramArchive) -> Result<OutInfo, ReportCol
     let initial_expression = program_archive.get_main_expression();
     let type_analysis_response =
         type_expression(initial_expression, program_archive, &mut analysis_information);
-    if type_analysis_response.is_err(){
+    if type_analysis_response.is_err() {
         return Result::Err(analysis_information.reports);
     }
 
     check_main_has_tags(initial_expression, program_archive, &mut analysis_information.reports);
-
 
     if analysis_information.reports.is_empty() {
         Result::Ok(OutInfo { reached: analysis_information.reached })
@@ -88,12 +91,16 @@ pub fn type_check(program_archive: &ProgramArchive) -> Result<OutInfo, ReportCol
     }
 }
 
-fn check_main_has_tags(initial_expression: &Expression, program_archive: &ProgramArchive, reports: &mut ReportCollection) {
-    if let  Call { id, .. } = initial_expression{
-        if program_archive.contains_template(id){
+fn check_main_has_tags(
+    initial_expression: &Expression,
+    program_archive: &ProgramArchive,
+    reports: &mut ReportCollection,
+) {
+    if let Call { id, .. } = initial_expression {
+        if program_archive.contains_template(id) {
             let inputs = program_archive.get_template_data(id).get_inputs();
             for input in inputs {
-                if !input.1.1.is_empty(){
+                if !input.1 .1.is_empty() {
                     add_report(
                         ReportCode::MainComponentWithTags,
                         initial_expression.get_meta(),
@@ -102,21 +109,11 @@ fn check_main_has_tags(initial_expression: &Expression, program_archive: &Progra
                     break;
                 }
             }
-        } else{
-            add_report(
-                ReportCode::IllegalMainExpression,
-                initial_expression.get_meta(),
-                reports,
-            )
+        } else {
+            add_report(ReportCode::IllegalMainExpression, initial_expression.get_meta(), reports)
         }
-       
-    }
-    else { 
-        add_report(
-            ReportCode::IllegalMainExpression,
-            initial_expression.get_meta(),
-            reports,
-        )
+    } else {
+        add_report(ReportCode::IllegalMainExpression, initial_expression.get_meta(), reports)
     }
 }
 
@@ -141,8 +138,7 @@ fn type_statement(
                         dim_expression.get_meta(),
                         &mut analysis_information.reports,
                     );
-                }
-                else if dim_type.dim() > 0 {
+                } else if dim_type.dim() > 0 {
                     add_report(
                         ReportCode::InvalidArraySize(dim_type.dim()),
                         dim_expression.get_meta(),
@@ -153,11 +149,17 @@ fn type_statement(
             match xtype {
                 VariableType::Signal(s_type, tags) => {
                     if let SignalType::Input = s_type {
-                        analysis_information.environment.add_input(name, (dimensions.len(),tags.clone()));
+                        analysis_information
+                            .environment
+                            .add_input(name, (dimensions.len(), tags.clone()));
                     } else if let SignalType::Output = s_type {
-                        analysis_information.environment.add_output(name, (dimensions.len(),tags.clone()));
+                        analysis_information
+                            .environment
+                            .add_output(name, (dimensions.len(), tags.clone()));
                     } else {
-                        analysis_information.environment.add_intermediate(name, (dimensions.len(),tags.clone()));
+                        analysis_information
+                            .environment
+                            .add_intermediate(name, (dimensions.len(), tags.clone()));
                     }
                 }
                 VariableType::Var => {
@@ -188,7 +190,8 @@ fn type_statement(
                 return;
             };
 
-            if analysis_information.environment.has_component(var) && access_information.2.is_some(){
+            if analysis_information.environment.has_component(var) && access_information.2.is_some()
+            {
                 return add_report(
                     ReportCode::OutputTagCannotBeModifiedOutside,
                     meta,
@@ -215,8 +218,8 @@ fn type_statement(
                 | (SymbolInformation::Signal(_), AssignOp::AssignSignal)
                 | (SymbolInformation::Var(_), AssignOp::AssignVar)
                 | (SymbolInformation::Component(_), AssignOp::AssignVar) => {}
-                | (SymbolInformation::Tag, AssignOp::AssignVar) => {}
-                (SymbolInformation::Signal(_), AssignOp::AssignVar)=>{
+                (SymbolInformation::Tag, AssignOp::AssignVar) => {}
+                (SymbolInformation::Signal(_), AssignOp::AssignVar) => {
                     return add_report(
                         ReportCode::WrongTypesInAssignOperationOperatorSignal,
                         meta,
@@ -232,14 +235,14 @@ fn type_statement(
                 }
             }
             match symbol_information {
-                SymbolInformation::Component(possible_template) =>{
-                    if rhe_type.is_template(){
-                        if possible_template.is_none(){
+                SymbolInformation::Component(possible_template) => {
+                    if rhe_type.is_template() {
+                        if possible_template.is_none() {
                             let (current_template, _) = analysis_information
                                 .environment
                                 .get_mut_component_or_break(var, file!(), line!());
                             *current_template = rhe_type.template;
-                        } else{
+                        } else {
                             let template = possible_template.unwrap();
                             let r_template = rhe_type.template.unwrap();
                             if template != r_template {
@@ -250,7 +253,7 @@ fn type_statement(
                                 )
                             }
                         }
-                    } else{
+                    } else {
                         add_report(
                             ReportCode::WrongTypesInAssignOperationTemplate,
                             meta,
@@ -258,53 +261,50 @@ fn type_statement(
                         )
                     }
                 }
-                SymbolInformation::Signal(dim) =>{
-                    if rhe_type.is_template(){
+                SymbolInformation::Signal(dim) => {
+                    if rhe_type.is_template() {
                         add_report(
                             ReportCode::WrongTypesInAssignOperationExpression,
                             meta,
                             &mut analysis_information.reports,
                         )
-                    } else if dim != rhe_type.dim(){
+                    } else if dim != rhe_type.dim() {
                         add_report(
                             ReportCode::WrongTypesInAssignOperationDims(dim, rhe_type.dim()),
                             meta,
                             &mut analysis_information.reports,
                         )
                     }
-                    
                 }
-                SymbolInformation::Var(dim) =>{
-                    if rhe_type.is_template(){
+                SymbolInformation::Var(dim) => {
+                    if rhe_type.is_template() {
                         add_report(
                             ReportCode::WrongTypesInAssignOperationExpression,
                             meta,
                             &mut analysis_information.reports,
                         )
-                    } else if dim != rhe_type.dim(){
+                    } else if dim != rhe_type.dim() {
                         add_report(
-                            ReportCode::WrongTypesInAssignOperationDims(dim, rhe_type.dim()), 
+                            ReportCode::WrongTypesInAssignOperationDims(dim, rhe_type.dim()),
                             meta,
                             &mut analysis_information.reports,
                         )
                     }
-                    
                 }
-                SymbolInformation::Tag =>{
-                    if rhe_type.is_template(){
+                SymbolInformation::Tag => {
+                    if rhe_type.is_template() {
                         add_report(
                             ReportCode::WrongTypesInAssignOperationExpression,
                             meta,
                             &mut analysis_information.reports,
                         )
-                    } else if 0 != rhe_type.dim(){
+                    } else if 0 != rhe_type.dim() {
                         add_report(
                             ReportCode::WrongTypesInAssignOperationDims(0, rhe_type.dim()),
                             meta,
                             &mut analysis_information.reports,
                         )
                     }
-                    
                 }
             }
         }
@@ -345,14 +345,14 @@ fn type_statement(
         }
         LogCall { args, meta } => {
             for arglog in args {
-                if let LogArgument::LogExp(arg) = arglog{
-                    let arg_response = type_expression(&arg, program_archive, analysis_information);
+                if let LogArgument::LogExp(arg) = arglog {
+                    let arg_response = type_expression(arg, program_archive, analysis_information);
                     let arg_type = if let Result::Ok(t) = arg_response {
                         t
                     } else {
                         return;
                     };
-                    if arg_type.is_template()  {
+                    if arg_type.is_template() {
                         add_report(
                             ReportCode::MustBeSingleArithmeticT,
                             meta,
@@ -397,7 +397,7 @@ fn type_statement(
             } else {
                 return;
             };
-            let ret_type = analysis_information.return_type.clone().unwrap();
+            let ret_type = analysis_information.return_type.unwrap();
             debug_assert!(!value_type.is_template());
             if ret_type != value_type.dim() {
                 add_report(
@@ -418,13 +418,13 @@ fn type_statement(
             } else {
                 return;
             };
-            if cond_type.is_template(){
+            if cond_type.is_template() {
                 add_report(
                     ReportCode::MustBeSingleArithmeticT,
                     cond.get_meta(),
                     &mut analysis_information.reports,
                 )
-            }else if cond_type.dim() > 0 {
+            } else if cond_type.dim() > 0 {
                 add_report(
                     ReportCode::MustBeSingleArithmetic(cond_type.dim()),
                     cond.get_meta(),
@@ -440,13 +440,13 @@ fn type_statement(
             } else {
                 return;
             };
-            if cond_type.is_template(){
+            if cond_type.is_template() {
                 add_report(
                     ReportCode::MustBeSingleArithmeticT,
                     cond.get_meta(),
                     &mut analysis_information.reports,
                 )
-            }else if cond_type.dim() > 0 {
+            } else if cond_type.dim() > 0 {
                 add_report(
                     ReportCode::MustBeSingleArithmetic(cond_type.dim()),
                     cond.get_meta(),
@@ -462,7 +462,7 @@ fn type_statement(
             analysis_information.environment.remove_variable_block();
         }
         MultSubstitution { .. } => unreachable!(),
-        UnderscoreSubstitution { rhe , ..} => {
+        UnderscoreSubstitution { rhe, .. } => {
             let rhe_response = type_expression(rhe, program_archive, analysis_information);
             let rhe_type = if let Result::Ok(r_type) = rhe_response {
                 r_type
@@ -476,7 +476,7 @@ fn type_statement(
                     &mut analysis_information.reports,
                 );
             }
-        },
+        }
     }
 }
 fn type_expression(
@@ -518,11 +518,7 @@ fn type_expression(
         UniformArray { meta, value, dimension } => {
             let value_type = type_expression(value, program_archive, analysis_information)?;
             if value_type.is_template() {
-                add_report(
-                    ReportCode::InvalidArrayType,
-                    meta,
-                    &mut analysis_information.reports,
-                );
+                add_report(ReportCode::InvalidArrayType, meta, &mut analysis_information.reports);
             };
             let dim_type = type_expression(dimension, program_archive, analysis_information)?;
             if dim_type.is_template() {
@@ -538,7 +534,7 @@ fn type_expression(
                     &mut analysis_information.reports,
                 );
             }
-            
+
             Result::Ok(FoldedType::arithmetic_type(value_type.dim() + 1))
         }
         InfixOp { lhe, rhe, .. } => {
@@ -576,9 +572,9 @@ fn type_expression(
                 Result::Ok(FoldedType::arithmetic_type(0))
             }
         }
-        ParallelOp {rhe, .. } =>{
+        ParallelOp { rhe, .. } => {
             let rhe_type = type_expression(rhe, program_archive, analysis_information)?;
-            if rhe_type.is_template()  {
+            if rhe_type.is_template() {
                 Result::Ok(rhe_type)
             } else {
                 add_report_and_end(
@@ -600,14 +596,13 @@ fn type_expression(
             } else {
                 return Result::Ok(if_true_type);
             };
-            if cond_type.is_template(){
+            if cond_type.is_template() {
                 add_report(
                     ReportCode::MustBeSingleArithmeticT,
                     cond.get_meta(),
                     &mut analysis_information.reports,
                 )
-            }
-            else if cond_type.dim() > 0 {
+            } else if cond_type.dim() > 0 {
                 add_report(
                     ReportCode::MustBeSingleArithmetic(cond_type.dim()),
                     cond.get_meta(),
@@ -632,7 +627,7 @@ fn type_expression(
         Variable { name, access, meta, .. } => {
             debug_assert!(analysis_information.environment.has_symbol(name));
             let access_information =
-                treat_access( access, meta, program_archive, analysis_information)?;
+                treat_access(access, meta, program_archive, analysis_information)?;
             let environment = &analysis_information.environment;
             let reports = &mut analysis_information.reports;
             let symbol_information = apply_access_to_symbol(
@@ -650,9 +645,7 @@ fn type_expression(
                 SymbolInformation::Var(dim) | SymbolInformation::Signal(dim) => {
                     Result::Ok(FoldedType::arithmetic_type(dim))
                 }
-                SymbolInformation::Tag => {
-                    Result::Ok(FoldedType::arithmetic_type(0))
-                }
+                SymbolInformation::Tag => Result::Ok(FoldedType::arithmetic_type(0)),
                 SymbolInformation::Component(possible_template) if possible_template.is_none() => {
                     add_report_and_end(ReportCode::UninitializedSymbolInExpression, meta, reports)
                 }
@@ -704,7 +697,7 @@ fn type_expression(
                 std::mem::replace(&mut analysis_information.environment, new_environment);
             let returned_type = if program_archive.contains_function(id) {
                 type_function(id, &concrete_types, meta, analysis_information, program_archive)
-                    .map(|val| FoldedType::arithmetic_type(val))
+                    .map(FoldedType::arithmetic_type)
             } else {
                 let r_val =
                     type_template(id, &concrete_types, analysis_information, program_archive);
@@ -715,7 +708,9 @@ fn type_expression(
             let folded_value = returned_type?;
             Result::Ok(folded_value)
         }
-        _ => {unreachable!("Anonymous calls should not be reachable at this point."); }
+        _ => {
+            unreachable!("Anonymous calls should not be reachable at this point.");
+        }
     }
 }
 //************************************************* Statement support *************************************************
@@ -745,15 +740,15 @@ fn treat_access(
     for access in accesses {
         match access {
             ArrayAccess(index) => {
-                let index_response = type_expression(&index, program_archive, analysis_information);
-                
-                if access_info.2.is_some(){
+                let index_response = type_expression(index, program_archive, analysis_information);
+
+                if access_info.2.is_some() {
                     add_report(
                         ReportCode::InvalidArrayAccess(0, 1),
                         index.get_meta(),
                         &mut analysis_information.reports,
                     );
-                } else{
+                } else {
                     if let Option::Some(signal_info) = &mut access_info.1 {
                         signal_info.1 += 1;
                     } else {
@@ -766,8 +761,7 @@ fn treat_access(
                                 index.get_meta(),
                                 &mut analysis_information.reports,
                             );
-                        }
-                        else if index_type.dim() > 0 {
+                        } else if index_type.dim() > 0 {
                             add_report(
                                 ReportCode::InvalidArraySize(index_type.dim()),
                                 index.get_meta(),
@@ -778,10 +772,10 @@ fn treat_access(
                 }
             }
             ComponentAccess(name) => {
-                if let Option::Some(_signal_info) = & access_info.1 {
-                    if access_info.2.is_none(){
+                if let Option::Some(_signal_info) = &access_info.1 {
+                    if access_info.2.is_none() {
                         access_info.2 = Some(name.clone())
-                    } else{
+                    } else {
                         add_report(
                             ReportCode::InvalidSignalTagAccess,
                             meta,
@@ -796,7 +790,6 @@ fn treat_access(
     }
     Result::Ok(access_info)
 }
-
 
 enum SymbolInformation {
     Component(Option<String>),
@@ -814,32 +807,40 @@ fn apply_access_to_symbol(
 ) -> Result<SymbolInformation, ()> {
     let (current_template, mut current_dim, possible_tags) = if environment.has_component(symbol) {
         let (temp, dim) = environment.get_component_or_break(symbol, file!(), line!()).clone();
-        (temp,dim, Vec::new())
+        (temp, dim, Vec::new())
     } else if environment.has_signal(symbol) {
-        let(dim, tags) = environment.get_signal_or_break(symbol, file!(), line!());
-        (Option::None,  *dim, tags.clone())
+        let (dim, tags) = environment.get_signal_or_break(symbol, file!(), line!());
+        (Option::None, *dim, tags.clone())
     } else {
         let dim = environment.get_variable_or_break(symbol, file!(), line!());
         (Option::None, *dim, Vec::new())
     };
 
     if access_information.0 > current_dim {
-        return add_report_and_end(ReportCode::InvalidArrayAccess(current_dim, access_information.0), meta, reports);
+        return add_report_and_end(
+            ReportCode::InvalidArrayAccess(current_dim, access_information.0),
+            meta,
+            reports,
+        );
     } else {
         current_dim -= access_information.0
     }
 
-    // Case signals or tags 
-    if let Option::Some((signal_name, dims_accessed)) = access_information.1{
-        if current_template.is_some(){ // we are inside component
-            
-            if current_dim != 0{ // only allowed complete accesses to component
+    // Case signals or tags
+    if let Option::Some((signal_name, dims_accessed)) = access_information.1 {
+        if current_template.is_some() {
+            // we are inside component
+
+            if current_dim != 0 {
+                // only allowed complete accesses to component
                 return add_report_and_end(ReportCode::InvalidPartialArray, meta, reports);
             }
 
             let template_name = current_template.unwrap();
-            let input = program_archive.get_template_data(&template_name).get_input_info(&signal_name);
-            let output = program_archive.get_template_data(&template_name).get_output_info(&signal_name);
+            let input =
+                program_archive.get_template_data(&template_name).get_input_info(&signal_name);
+            let output =
+                program_archive.get_template_data(&template_name).get_output_info(&signal_name);
             let tags;
             (current_dim, tags) = match (input, output) {
                 (Option::Some((d, tags)), _) | (_, Option::Some((d, tags))) => (*d, tags),
@@ -847,41 +848,46 @@ fn apply_access_to_symbol(
                     return add_report_and_end(ReportCode::InvalidSignalAccess, meta, reports);
                 }
             };
-            if access_information.2.is_some(){ // tag of io signal of component
-                if dims_accessed > 0{
-                    return add_report_and_end(ReportCode::InvalidTagAccessAfterArray, meta, reports);
-                }
-                else if !tags.contains(&access_information.2.unwrap()){
+            if access_information.2.is_some() {
+                // tag of io signal of component
+                if dims_accessed > 0 {
+                    add_report_and_end(ReportCode::InvalidTagAccessAfterArray, meta, reports)
+                } else if !tags.contains(&access_information.2.unwrap()) {
                     return add_report_and_end(ReportCode::InvalidTagAccess, meta, reports);
-                } else{
+                } else {
                     return Result::Ok(SymbolInformation::Tag);
                 }
-            } else{ // io signal of component
+            } else {
+                // io signal of component
                 if dims_accessed > current_dim {
-                    return add_report_and_end(ReportCode::InvalidArrayAccess(current_dim, dims_accessed), meta, reports);
+                    add_report_and_end(
+                        ReportCode::InvalidArrayAccess(current_dim, dims_accessed),
+                        meta,
+                        reports,
+                    )
                 } else {
-                    return Result::Ok(SymbolInformation::Signal(current_dim - dims_accessed));
-                }   
+                    Result::Ok(SymbolInformation::Signal(current_dim - dims_accessed))
+                }
             }
-        } else{ // we are in template
-            if environment.has_signal(symbol){
-                if access_information.0 != 0{
+        } else {
+            // we are in template
+            if environment.has_signal(symbol) {
+                if access_information.0 != 0 {
                     add_report_and_end(ReportCode::InvalidTagAccessAfterArray, meta, reports)
-                } else if dims_accessed > 0{
+                } else if dims_accessed > 0 {
                     add_report_and_end(
                         ReportCode::InvalidArrayAccess(0, dims_accessed),
                         meta,
                         reports,
                     )
-                } else if !possible_tags.contains(&signal_name){
+                } else if !possible_tags.contains(&signal_name) {
                     add_report_and_end(ReportCode::InvalidTagAccess, meta, reports)
-                } else{
+                } else {
                     Result::Ok(SymbolInformation::Tag)
                 }
-            
-            } else if environment.has_component(symbol){
+            } else if environment.has_component(symbol) {
                 add_report_and_end(ReportCode::UninitializedComponent, meta, reports)
-            } else{
+            } else {
                 add_report_and_end(ReportCode::InvalidSignalTagAccess, meta, reports)
             }
         }
@@ -895,7 +901,6 @@ fn apply_access_to_symbol(
         add_report_and_end(ReportCode::InvalidPartialArray, meta, reports)
     }
 }
-
 
 fn type_array_of_expressions(
     expressions: &[Expression],
@@ -1008,8 +1013,7 @@ fn add_report(error_code: ReportCode, meta: &Meta, reports: &mut ReportCollectio
         //TypeCantBeUseAsCondition => "This type can not be used as a condition".to_string(),
         //BadArrayAccess => "This type can not be used as index".to_string(),
         EmptyArrayInlineDeclaration => "Empty arrays can not be declared inline".to_string(),
-        NonHomogeneousArray(dim_1, dim_2) => 
-            format!("All the elements in a array must have the same type.\n Found elements in the array with {} and {} dimensions.",
+        NonHomogeneousArray(dim_1, dim_2) => format!("All the elements in a array must have the same type.\n Found elements in the array with {} and {} dimensions.",
                 dim_1, dim_2),
         InvalidArraySize(dim) => {
             format!("Array indexes and lengths must be single arithmetic expressions.\n Found expression with {} dimensions.",
@@ -1037,10 +1041,10 @@ fn add_report(error_code: ReportCode, meta: &Meta, reports: &mut ReportCollectio
         InvalidPartialArray => "Only variable arrays can be accessed partially".to_string(),
         UninitializedSymbolInExpression => "The type of this symbol is not known".to_string(),
         WrongTypesInAssignOperationOperatorSignal => {
-            format!("The operator does not match the types of the assigned elements.\n Assignments to signals do not allow the operator =, try using <== or <-- instead")
+            "The operator does not match the types of the assigned elements.\n Assignments to signals do not allow the operator =, try using <== or <-- instead".to_string()
         }
         WrongTypesInAssignOperationOperatorNoSignal => {
-            format!("The operator does not match the types of the assigned elements.\n Only assignments to signals allow the operators <== and <--, try using = instead")
+            "The operator does not match the types of the assigned elements.\n Only assignments to signals allow the operators <== and <--, try using = instead".to_string()
         }
         WrongTypesInAssignOperationArrayTemplates => "Assignee and assigned types do not match.\n All components of an array must be instances of the same template.".to_string(),
         WrongTypesInAssignOperationTemplate => "Assignee and assigned types do not match.\n Expected template found expression.".to_string(),
@@ -1055,7 +1059,7 @@ fn add_report(error_code: ReportCode, meta: &Meta, reports: &mut ReportCollectio
             format!("Must be a single arithmetic expression.\n Found expression of {} dimensions", dim)
         }
         MustBeSingleArithmeticT => {
-              format!("Must be a single arithmetic expression.\n Found component")
+              "Must be a single arithmetic expression.\n Found component".to_string()
         }
         MustBeArithmetic => "Must be a single arithmetic expression or an array of arithmetic expressions. \n Found component".to_string(),
         OutputTagCannotBeModifiedOutside => "Output tag from a subcomponent cannot be modified".to_string(),

@@ -68,7 +68,7 @@ fn analyze_main(program: &ProgramArchive) -> Result<(), Vec<Report>> {
             for signal in signals {
                 if !inputs.contains_key(signal) {
                     let mut report = Report::error(
-                        format!("Invalid public list"),
+                        "Invalid public list".to_string(),
                         ReportCode::SameSymbolDeclaredTwice,
                     );
                     report.add_primary(
@@ -91,7 +91,11 @@ fn analyze_main(program: &ProgramArchive) -> Result<(), Vec<Report>> {
         &environment,
     );
 
-    if reports.is_empty() { Ok(()) } else { Err(reports) }
+    if reports.is_empty() {
+        Ok(())
+    } else {
+        Err(reports)
+    }
 }
 
 pub fn analyze_symbols(
@@ -112,11 +116,11 @@ pub fn analyze_symbols(
     }
     if param_name_collision {
         let mut report =
-            Report::error(format!("Symbol declared twice"), ReportCode::SameSymbolDeclaredTwice);
+            Report::error("Symbol declared twice".to_string(), ReportCode::SameSymbolDeclaredTwice);
         report.add_primary(
             param_location.clone(),
-            file_id.clone(),
-            format!("Declaring same symbol twice"),
+            file_id,
+            "Declaring same symbol twice".to_string(),
         );
         reports.push(report);
     }
@@ -213,13 +217,13 @@ fn analyze_statement(
             }
             if !add_symbol_to_block(environment, name) {
                 let mut report = Report::error(
-                    format!("Symbol declared twice"),
+                    "Symbol declared twice".to_string(),
                     ReportCode::SameSymbolDeclaredTwice,
                 );
                 report.add_primary(
                     meta.location.clone(),
-                    file_id.clone(),
-                    format!("Declaring same symbol twice"),
+                    file_id,
+                    "Declaring same symbol twice".to_string(),
                 );
                 reports.push(report);
             }
@@ -227,7 +231,14 @@ fn analyze_statement(
         Statement::LogCall { args, .. } => {
             for logarg in args {
                 if let LogArgument::LogExp(arg) = logarg {
-                    analyze_expression(arg, file_id, function_info, template_info, reports, environment);
+                    analyze_expression(
+                        arg,
+                        file_id,
+                        function_info,
+                        template_info,
+                        reports,
+                        environment,
+                    );
                 }
             }
         }
@@ -280,11 +291,12 @@ fn treat_variable(
     environment: &Environment,
 ) {
     if !symbol_in_environment(environment, name) {
-        let mut report = Report::error(format!("Undeclared symbol"), ReportCode::NonExistentSymbol);
+        let mut report =
+            Report::error("Undeclared symbol".to_string(), ReportCode::NonExistentSymbol);
         report.add_primary(
             file_definition::generate_file_location(meta.get_start(), meta.get_end()),
-            file_id.clone(),
-            format!("Using unknown symbol"),
+            file_id,
+            "Using unknown symbol".to_string(),
         );
         reports.push(report);
     }
@@ -346,11 +358,11 @@ fn analyze_expression(
         Expression::Call { meta, id, args, .. } => {
             if !function_info.contains_key(id) && !template_info.contains_key(id) {
                 let mut report =
-                    Report::error(format!("Calling symbol"), ReportCode::NonExistentSymbol);
+                    Report::error("Calling symbol".to_string(), ReportCode::NonExistentSymbol);
                 report.add_primary(
                     file_definition::generate_file_location(meta.get_start(), meta.get_end()),
-                    file_id.clone(),
-                    format!("Calling unknown symbol"),
+                    file_id,
+                    "Calling unknown symbol".to_string(),
                 );
                 reports.push(report);
                 return;
@@ -362,12 +374,12 @@ fn analyze_expression(
             };
             if args.len() != expected_num_of_params {
                 let mut report = Report::error(
-                    format!("Calling function with wrong number of arguments"),
+                    "Calling function with wrong number of arguments".to_string(),
                     ReportCode::FunctionWrongNumberOfArguments,
                 );
                 report.add_primary(
                     file_definition::generate_file_location(meta.get_start(), meta.get_end()),
-                    file_id.clone(),
+                    file_id,
                     format!("Got {} params, {} where expected", args.len(), expected_num_of_params),
                 );
                 reports.push(report);
@@ -396,15 +408,8 @@ fn analyze_expression(
                 );
             }
         }
-        Expression::UniformArray{ value, dimension, .. } => {
-            analyze_expression(
-                value,
-                file_id,
-                function_info,
-                template_info,
-                reports,
-                environment,
-            );
+        Expression::UniformArray { value, dimension, .. } => {
+            analyze_expression(value, file_id, function_info, template_info, reports, environment);
             analyze_expression(
                 dimension,
                 file_id,
@@ -413,7 +418,7 @@ fn analyze_expression(
                 reports,
                 environment,
             );
-        },
+        }
         _ => {}
     }
 }

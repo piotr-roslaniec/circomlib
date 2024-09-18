@@ -65,7 +65,7 @@ impl<C: Default + Clone + Display + Eq> Display for MemorySlice<C> {
             for i in 1..self.values.len() {
                 msg.push_str(&format!(",{}", self.values[i]));
             }
-            msg.push_str("]");
+            msg.push(']');
             f.write_str(&msg)
         }
     }
@@ -240,7 +240,7 @@ impl<C: Clone> MemorySlice<C> {
                 }
                 Result::Err(MemoryError::MismatchedDimensionsWeak(dim_1, dim_2))
             }
-            Result::Err(error) => return Err(error),
+            Result::Err(error) => Err(error),
         }
     }
 
@@ -254,7 +254,7 @@ impl<C: Clone> MemorySlice<C> {
         }
         memory_slice.number_inserts += 1;
         memory_slice.values[index] = new_value;
-        return Result::Ok(());
+        Result::Ok(())
     }
 
     pub fn get_access_index(
@@ -263,16 +263,16 @@ impl<C: Clone> MemorySlice<C> {
     ) -> Result<Vec<SliceCapacity>, MemoryError> {
         let mut number_cells = MemorySlice::get_number_of_cells(memory_slice);
         if index > number_cells {
-            return Result::Err(MemoryError::OutOfBoundsError);
+            Result::Err(MemoryError::OutOfBoundsError)
         } else {
             let mut access = vec![];
             let mut index_aux = index;
             for pos in &memory_slice.route {
-                number_cells = number_cells / pos;
+                number_cells /= pos;
                 access.push(index_aux / number_cells);
-                index_aux = index_aux % number_cells;
+                index_aux %= number_cells;
             }
-            return Result::Ok(access);
+            Result::Ok(access)
         }
     }
 
@@ -289,12 +289,10 @@ impl<C: Clone> MemorySlice<C> {
         if index > MemorySlice::get_number_of_cells(memory_slice) {
             return Result::Err(MemoryError::OutOfBoundsError);
         }
-        return Result::Ok(memory_slice.values[index].clone());
+        Result::Ok(memory_slice.values[index].clone())
     }
 
-    pub fn get_reference_values<'a>(
-        memory_slice: &'a MemorySlice<C>,
-    )-> &'a Vec<C>{
+    pub fn get_reference_values(memory_slice: &MemorySlice<C>) -> &Vec<C> {
         &memory_slice.values
     }
 
@@ -306,19 +304,19 @@ impl<C: Clone> MemorySlice<C> {
         let cell = MemorySlice::get_initial_cell(memory_slice, access)?;
         Result::Ok(&memory_slice.values[cell])
     }
-    pub fn get_reference_to_single_value_by_index<'a>(
-        memory_slice: &'a MemorySlice<C>,
+    pub fn get_reference_to_single_value_by_index(
+        memory_slice: &MemorySlice<C>,
         index: usize,
-    ) -> Result<&'a C, MemoryError> {
+    ) -> Result<&C, MemoryError> {
         if index > MemorySlice::get_number_of_cells(memory_slice) {
             return Result::Err(MemoryError::OutOfBoundsError);
         }
         Result::Ok(&memory_slice.values[index])
     }
-    pub fn get_reference_to_single_value_by_index_or_break<'a>(
-        memory_slice: &'a MemorySlice<C>,
+    pub fn get_reference_to_single_value_by_index_or_break(
+        memory_slice: &MemorySlice<C>,
         index: usize,
-    ) -> &'a C {
+    ) -> &C {
         if index > MemorySlice::get_number_of_cells(memory_slice) {
             unreachable!("The index is too big for the slice");
         }
@@ -403,7 +401,7 @@ mod tests {
         let new_row = U32Slice::new_with_route(&[4], &4);
 
         let res = U32Slice::insert_values(&mut slice, &[2], &new_row, false);
-        if let Result::Ok(_) = res {
+        if res.is_ok() {
             for c in 0..4 {
                 let memory_result = U32Slice::get_reference_to_single_value(&slice, &[2, c]);
                 if let Result::Ok(val) = memory_result {

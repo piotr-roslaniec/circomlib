@@ -6,7 +6,6 @@ use program_structure::ast::*;
 use program_structure::program_archive::ProgramArchive;
 use num_traits::{ToPrimitive};
 
-
 pub fn run_preprocessing(vcp: &mut VCP, program_archive: ProgramArchive) {
     let mut state = build_function_knowledge(program_archive);
     produce_vcf(vcp, &mut state);
@@ -29,7 +28,7 @@ fn produce_vcf(vcp: &VCP, state: &mut State) {
     let mut index = 0;
     while index < state.vcf_collector.len() {
         state.external_signals = build_component_info(&vec![]);
-        let mut env = build_environment(&vec![], &state.vcf_collector[index].params_types);
+        let mut env = build_environment(&[], &state.vcf_collector[index].params_types);
         let body = state.vcf_collector[index].body.clone();
         produce_vcf_stmt(&body, state, &mut env);
         index += 1;
@@ -38,7 +37,7 @@ fn produce_vcf(vcp: &VCP, state: &mut State) {
 
 fn link_circuit(vcp: &mut VCP, state: &mut State) {
     for node in &mut vcp.templates {
-        let mut env = build_environment(&node.header, &vec![]);
+        let mut env = build_environment(&node.header, &[]);
         state.external_signals = build_component_info(&node.triggers);
         link_stmt(&mut node.code, state, &mut env);
     }
@@ -131,7 +130,7 @@ fn produce_vcf_expr(expr: &Expression, state: &mut State, environment: &E) {
         produce_vcf_call(expr, state, environment);
     } else if expr.is_array() {
         produce_vcf_array(expr, state, environment);
-    } else if expr.is_parallel(){
+    } else if expr.is_parallel() {
         produce_vcf_parallel(expr, state, environment);
     } else {
         unreachable!();
@@ -163,7 +162,7 @@ fn produce_vcf_log_call(stmt: &Statement, state: &mut State, environment: &E) {
             if let LogArgument::LogExp(arg) = arglog {
                 produce_vcf_expr(arg, state, environment);
             }
-            else {}// unimplemented!(); }
+            // unimplemented!(); }
         }
     } else {
         unreachable!();
@@ -419,10 +418,10 @@ fn link_log_call(stmt: &mut Statement, state: &State, env: &mut E) {
     use Statement::LogCall;
     if let LogCall { args, .. } = stmt {
         for arglog in args {
-            if let LogArgument::LogExp(arg) = arglog{
+            if let LogArgument::LogExp(arg) = arglog {
                 link_expression(arg, state, env);
             }
-        }   
+        }
     } else {
         unreachable!();
     }
@@ -496,7 +495,7 @@ fn link_expression(expr: &mut Expression, state: &State, env: &E) {
         link_infix(expr, state, env);
     } else if expr.is_prefix() {
         link_prefix(expr, state, env);
-    } else if expr.is_parallel(){
+    } else if expr.is_parallel() {
         link_parallel(expr, state, env);
     } else {
         unreachable!();
@@ -637,7 +636,6 @@ fn cast_dimension(ae_index: &Expression) -> Option<usize> {
     }
 }
 
-
 fn cast_type_array(expr: &Expression, state: &State, environment: &E) -> VCT {
     use Expression::{ArrayInLine, UniformArray};
     if let ArrayInLine { values, .. } = expr {
@@ -646,7 +644,7 @@ fn cast_type_array(expr: &Expression, state: &State, environment: &E) -> VCT {
         result.append(&mut inner_type);
         result
     } else if let UniformArray { value, dimension, .. } = expr {
-        let usable_dimension = if let Option::Some(dimension) = cast_dimension(&dimension) {
+        let usable_dimension = if let Option::Some(dimension) = cast_dimension(dimension) {
             dimension
         } else {
             unreachable!()

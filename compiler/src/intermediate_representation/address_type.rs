@@ -10,7 +10,7 @@ pub enum StatusInput {
 #[derive(Clone)]
 pub enum InputInformation {
     NoInput,
-    Input {status: StatusInput},
+    Input { status: StatusInput },
 }
 
 impl ToString for InputInformation {
@@ -18,13 +18,11 @@ impl ToString for InputInformation {
         use InputInformation::*;
         match self {
             NoInput => "NO_INPUT".to_string(),
-            Input { status } => {
-                match status {
-                    StatusInput::Last => "LAST".to_string(),
-                    StatusInput::NoLast => "NO_LAST".to_string(),
-                    StatusInput::Unknown => "UNKNOWN".to_string(),
-                }
-            }
+            Input { status } => match status {
+                StatusInput::Last => "LAST".to_string(),
+                StatusInput::NoLast => "NO_LAST".to_string(),
+                StatusInput::Unknown => "UNKNOWN".to_string(),
+            },
         }
     }
 }
@@ -33,7 +31,12 @@ impl ToString for InputInformation {
 pub enum AddressType {
     Variable,
     Signal,
-    SubcmpSignal { cmp_address: InstructionPointer, uniform_parallel_value: Option<bool>, is_output: bool, input_information: InputInformation },
+    SubcmpSignal {
+        cmp_address: InstructionPointer,
+        uniform_parallel_value: Option<bool>,
+        is_output: bool,
+        input_information: InputInformation,
+    },
 }
 
 impl ToString for AddressType {
@@ -42,7 +45,11 @@ impl ToString for AddressType {
         match self {
             Variable => "VARIABLE".to_string(),
             Signal => "SIGNAL".to_string(),
-            SubcmpSignal { cmp_address, input_information, .. } => format!("SUBCOMPONENT:{}:{}", cmp_address.to_string(), input_information.to_string()),
+            SubcmpSignal { cmp_address, input_information, .. } => format!(
+                "SUBCOMPONENT:{}:{}",
+                cmp_address.to_string(),
+                input_information.to_string()
+            ),
         }
     }
 }

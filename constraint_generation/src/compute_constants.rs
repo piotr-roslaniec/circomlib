@@ -18,7 +18,11 @@ struct Context<'a> {
     program_archive: &'a ProgramArchive,
 }
 
-pub fn manage_functions(program_archive: &mut ProgramArchive, flags: FlagsExecution, prime: &String) -> CCResult {
+pub fn manage_functions(
+    program_archive: &mut ProgramArchive,
+    flags: FlagsExecution,
+    prime: &String,
+) -> CCResult {
     let mut reports = vec![];
     let mut processed = HashMap::new();
     for (name, data) in program_archive.get_functions() {
@@ -43,7 +47,7 @@ pub fn compute_vct(
     instances: &mut Vec<TemplateInstance>,
     program_archive: &ProgramArchive,
     flags: FlagsExecution,
-    prime: &String
+    prime: &String,
 ) -> CCResult {
     let mut reports = vec![];
     for instance in instances {
@@ -76,7 +80,13 @@ fn argument_into_slice(argument: &Argument) -> AExpressionSlice {
     AExpressionSlice::new_array(dimensions, arithmetic_expressions)
 }
 
-fn treat_statement(stmt: &mut Statement, context: &Context, reports: &mut ReportCollection, flags: FlagsExecution, prime: &String) {
+fn treat_statement(
+    stmt: &mut Statement,
+    context: &Context,
+    reports: &mut ReportCollection,
+    flags: FlagsExecution,
+    prime: &String,
+) {
     if stmt.is_initialization_block() {
         treat_init_block(stmt, context, reports, flags, prime)
     } else if stmt.is_block() {
@@ -85,23 +95,27 @@ fn treat_statement(stmt: &mut Statement, context: &Context, reports: &mut Report
         treat_conditional(stmt, context, reports, flags, prime)
     } else if stmt.is_while() {
         treat_while(stmt, context, reports, flags, prime)
-    } else if stmt.is_declaration(){
+    } else if stmt.is_declaration() {
         treat_declaration(stmt, context, reports, flags, prime)
-    } else if stmt.is_substitution(){
+    } else if stmt.is_substitution() {
         treat_substitution(stmt, context, reports, flags, prime)
-    } else{
-
     }
 }
 
-fn treat_init_block(stmt: &mut Statement, context: &Context, reports: &mut ReportCollection, flags: FlagsExecution, prime: &String) {
+fn treat_init_block(
+    stmt: &mut Statement,
+    context: &Context,
+    reports: &mut ReportCollection,
+    flags: FlagsExecution,
+    prime: &String,
+) {
     use Statement::InitializationBlock;
     if let InitializationBlock { initializations, .. } = stmt {
         for init in initializations {
             if init.is_declaration() {
                 treat_declaration(init, context, reports, flags, prime)
             }
-            if init.is_substitution(){
+            if init.is_substitution() {
                 treat_substitution(init, context, reports, flags, prime)
             }
         }
@@ -110,7 +124,13 @@ fn treat_init_block(stmt: &mut Statement, context: &Context, reports: &mut Repor
     }
 }
 
-fn treat_block(stmt: &mut Statement, context: &Context, reports: &mut ReportCollection, flags: FlagsExecution, prime: &String) {
+fn treat_block(
+    stmt: &mut Statement,
+    context: &Context,
+    reports: &mut ReportCollection,
+    flags: FlagsExecution,
+    prime: &String,
+) {
     use Statement::Block;
     if let Block { stmts, .. } = stmt {
         for s in stmts {
@@ -121,7 +141,13 @@ fn treat_block(stmt: &mut Statement, context: &Context, reports: &mut ReportColl
     }
 }
 
-fn treat_while(stmt: &mut Statement, context: &Context, reports: &mut ReportCollection, flags: FlagsExecution, prime: &String) {
+fn treat_while(
+    stmt: &mut Statement,
+    context: &Context,
+    reports: &mut ReportCollection,
+    flags: FlagsExecution,
+    prime: &String,
+) {
     use Statement::While;
     if let While { stmt, .. } = stmt {
         treat_statement(stmt, context, reports, flags, prime);
@@ -130,7 +156,13 @@ fn treat_while(stmt: &mut Statement, context: &Context, reports: &mut ReportColl
     }
 }
 
-fn treat_conditional(stmt: &mut Statement, context: &Context, reports: &mut ReportCollection, flags: FlagsExecution, prime: &String) {
+fn treat_conditional(
+    stmt: &mut Statement,
+    context: &Context,
+    reports: &mut ReportCollection,
+    flags: FlagsExecution,
+    prime: &String,
+) {
     use Statement::IfThenElse;
     if let IfThenElse { if_case, else_case, .. } = stmt {
         treat_statement(if_case, context, reports, flags, prime);
@@ -142,15 +174,21 @@ fn treat_conditional(stmt: &mut Statement, context: &Context, reports: &mut Repo
     }
 }
 
-fn treat_declaration(stmt: &mut Statement, context: &Context, reports: &mut ReportCollection, flags: FlagsExecution, prime: &String) {
+fn treat_declaration(
+    stmt: &mut Statement,
+    context: &Context,
+    reports: &mut ReportCollection,
+    flags: FlagsExecution,
+    prime: &String,
+) {
     use Statement::Declaration;
     use program_structure::ast::VariableType::AnonymousComponent;
     if let Declaration { meta, dimensions, xtype, .. } = stmt {
         let mut concrete_dimensions = vec![];
-        match  xtype {
+        match xtype {
             AnonymousComponent => {
                 meta.get_mut_memory_knowledge().set_concrete_dimensions(vec![]);
-            },
+            }
             _ => {
                 for d in dimensions.iter_mut() {
                     let execution_response = treat_dimension(d, context, reports, flags, prime);
@@ -168,30 +206,38 @@ fn treat_declaration(stmt: &mut Statement, context: &Context, reports: &mut Repo
     }
 }
 
-fn treat_substitution(stmt: &mut Statement, context: &Context, reports: &mut ReportCollection, flags: FlagsExecution, prime: &String) {
+fn treat_substitution(
+    stmt: &mut Statement,
+    context: &Context,
+    reports: &mut ReportCollection,
+    flags: FlagsExecution,
+    prime: &String,
+) {
     use Statement::Substitution;
 
-    if let Substitution{rhe, ..} = stmt{
+    if let Substitution { rhe, .. } = stmt {
         treat_expression(rhe, context, reports, flags, prime);
-    } else{
+    } else {
         unreachable!()
     }
-
 }
 
 fn treat_expression(
-    expr: &mut Expression, context: &Context, reports: &mut ReportCollection, flags: FlagsExecution, prime: &String
-){
+    expr: &mut Expression,
+    context: &Context,
+    reports: &mut ReportCollection,
+    flags: FlagsExecution,
+    prime: &String,
+) {
     use Expression::{Number, UniformArray};
-    if let UniformArray {meta, value, dimension} = expr{
-        let execution_response = treat_dimension(&dimension, context, reports, flags, prime);
+    if let UniformArray { meta, value, dimension } = expr {
+        let execution_response = treat_dimension(dimension, context, reports, flags, prime);
         if let Option::Some(v) = execution_response {
             **dimension = Number(meta.clone(), BigInt::from(v));
         } else {
             report_invalid_dimension(meta, reports);
         }
         treat_expression(value, context, reports, flags, prime)
-    } else{
     }
 }
 
@@ -199,7 +245,7 @@ fn treat_dimension(
     dim: &Expression,
     context: &Context,
     reports: &mut ReportCollection,
-    flags: FlagsExecution, 
+    flags: FlagsExecution,
     prime: &String,
 ) -> Option<usize> {
     use crate::execute::execute_constant_expression;

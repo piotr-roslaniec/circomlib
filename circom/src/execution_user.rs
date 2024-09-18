@@ -4,7 +4,6 @@ use constraint_writers::debug_writer::DebugWriter;
 use constraint_writers::ConstraintExporter;
 use program_structure::program_archive::ProgramArchive;
 
-
 pub struct ExecutionConfig {
     pub r1cs: String,
     pub sym: String,
@@ -14,7 +13,7 @@ pub struct ExecutionConfig {
     pub flag_s: bool,
     pub flag_f: bool,
     pub flag_p: bool,
-    pub flag_old_heuristics:bool,
+    pub flag_old_heuristics: bool,
     pub flag_verbose: bool,
     pub inspect_constraints_flag: bool,
     pub sym_flag: bool,
@@ -40,7 +39,7 @@ pub fn execute_project(
         flag_verbose: config.flag_verbose,
         inspect_constraints: config.inspect_constraints_flag,
         flag_old_heuristics: config.flag_old_heuristics,
-        prime : config.prime,
+        prime: config.prime,
     };
     let custom_gates = program_archive.custom_gates;
     let (exporter, vcp) = build_circuit(program_archive, build_config)?;
@@ -56,7 +55,11 @@ pub fn execute_project(
     Result::Ok(vcp)
 }
 
-fn generate_output_r1cs(file: &str, exporter: &dyn ConstraintExporter, custom_gates: bool) -> Result<(), ()> {
+fn generate_output_r1cs(
+    file: &str,
+    exporter: &dyn ConstraintExporter,
+    custom_gates: bool,
+) -> Result<(), ()> {
     if let Result::Ok(()) = exporter.r1cs(file, custom_gates) {
         println!("{} {}", Colour::Green.paint("Written successfully:"), file);
         Result::Ok(())
@@ -80,7 +83,7 @@ fn generate_json_constraints(
     debug: &DebugWriter,
     exporter: &dyn ConstraintExporter,
 ) -> Result<(), ()> {
-    if let Ok(()) = exporter.json_constraints(&debug) {
+    if let Ok(()) = exporter.json_constraints(debug) {
         println!("{} {}", Colour::Green.paint("Constraints written in:"), debug.json_constraints);
         Result::Ok(())
     } else {

@@ -1,15 +1,15 @@
 [package]
 name = "program_structure"
 version = "2.1.9"
-authors = ["Costa Group UCM","iden3"]
-edition = "2018"
+authors = ["Costa Group UCM", "iden3"]
+edition = "2021"
 
 [dependencies]
-codespan = "0.9.0"
-codespan-reporting = "0.9.0"
-regex = "1.1.2"
-rustc-hex = "2.0.1"
-num-bigint-dig = "0.6.0"
-num-traits = "0.2.6"
-serde = "1.0.82"
-serde_derive = "1.0.91"
+codespan = { workspace = true }
+codespan-reporting = { workspace = true }
+regex = { workspace = true }
+rustc-hex = { workspace = true }
+num-bigint-dig = { workspace = true }
+num-traits = { workspace = true }
+serde = { workspace = true }
+serde_derive = { workspace = true }

@@ -2,6 +2,8 @@ use super::{Constraint, Edge, Node, SimplificationFlags, Tree, DAG};
 use constraint_list::{ConstraintList, DAGEncoding, EncodingEdge, EncodingNode, SignalInfo, Simplifier};
 use program_structure::utils::constants::UsefulConstants;
 use std::collections::{HashSet, LinkedList};
+use web_time::{SystemTime};
+
 #[derive(Default)]
 struct CHolder {
     linear: LinkedList<Constraint>,
@@ -13,7 +15,7 @@ fn map_tree(
     tree: &Tree,
     witness: &mut Vec<usize>,
     c_holder: &mut CHolder,
-    forbidden: &mut HashSet<usize>
+    forbidden: &mut HashSet<usize>,
 ) -> usize {
     let mut no_constraints = 0;
 
@@ -108,7 +110,6 @@ fn map_edge_to_encoding(edge: Edge) -> EncodingEdge {
 }
 
 pub fn map(dag: DAG, flags: SimplificationFlags) -> ConstraintList {
-    use std::time::SystemTime;
     // println!("Start of dag to list mapping");
     let now = SystemTime::now();
     let constants = UsefulConstants::new(&dag.prime);
@@ -123,7 +124,7 @@ pub fn map(dag: DAG, flags: SimplificationFlags) -> ConstraintList {
     let no_constraints = map_tree(&Tree::new(&dag), &mut signal_map, &mut c_holder, &mut forbidden);
     let max_signal = Vec::len(&signal_map);
     let name_encoding = produce_encoding(no_constraints, init_id, dag.nodes, dag.adjacency);
-    let _dur = now.elapsed().unwrap().as_millis();
+    let _dur = now.elapsed();
     // println!("End of dag to list mapping: {} ms", dur);
     Simplifier {
         field,

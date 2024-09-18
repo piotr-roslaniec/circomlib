@@ -1,7 +1,7 @@
 [package]
 name = "dag"
 version = "2.1.8"
-authors = ["Costa Group UCM","iden3"]
+authors = ["Costa Group UCM", "iden3"]
 edition = "2018"
 
 [dependencies]
@@ -9,4 +9,5 @@ constraint_list = { path = "../constraint_list" }
 constraint_writers = { path = "../constraint_writers" }
 circom_algebra = { path = "../circom_algebra" }
 program_structure = { path = "../program_structure" }
-json = "0.12.4"
+json = { workspace = true }
+web-time = { workspace = true }
