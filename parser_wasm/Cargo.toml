@@ -2,7 +2,7 @@
 name = "parser_wasm"
 version = "2.1.9"
 authors = ["Costa Group UCM", "iden3"]
-edition = "2018"
+edition = "2021"
 build = "build.rs"
 
 [build-dependencies]
@@ -25,6 +25,7 @@ wasm-bindgen = { workspace = true }
 getrandom = { workspace = true, features = ["js"] }
 web-time = { workspace = true }
 path-clean = { workspace = true }
+rayon = { workspace = true }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
