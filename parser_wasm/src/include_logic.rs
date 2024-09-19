@@ -2,11 +2,12 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use wasm_bindgen::__rt::std::collections::{HashMap, HashSet};
-use wasm_bindgen::__rt::std::path::PathBuf;
+use wasm_bindgen::__rt::std::path::{Path, PathBuf};
 use program_structure::ast::produce_report_with_message;
 use program_structure::error_code::ReportCode;
 use program_structure::error_definition::Report;
 use path_clean::PathClean;
+use rayon::prelude::*;
 
 fn normalize_path(path: &str) -> String {
     let mut components = vec![""]; // Becomes "/" root
@@ -36,69 +37,52 @@ impl FileStack {
     }
 
     pub fn add_include(
-        f_stack: &mut FileStack,
-        name: String,
-        libraries: &Vec<PathBuf>,
+        &mut self,
+        name: &str,
+        libraries: &[PathBuf],
         files_map: &HashMap<String, String>,
-    ) -> Result<String, Report> {
-        let mut libraries2 = Vec::new();
-        libraries2.push(f_stack.current_location.clone());
-        libraries2.append(&mut libraries.clone());
-        log::info!("Libraries: {:?}", libraries2);
-        for lib in libraries2 {
-            log::info!("lib={}", lib.display());
-            log::info!("name={}", name);
-            let mut path = PathBuf::new();
-            path.push(lib);
-            path.push(name.clone());
-            log::info!("Canonicalization path: {:?}", path);
-            path = path.clean();
-            // let canonical_path = CanonicalPath::new(&path).map_err(|e| produce_report_with_message(ReportCode::FileOs, path.display().to_string()));
-            // CanonicalPath::new(&path).unwrap();
-            // match canonical_path {
-            //     Err(_) => {
-            //         log::error!("Error canonicalizing path: {:?}", path.display());
-            //     }
-            //     Ok(path) => {
+    ) -> Result<PathBuf, Report> {
+        let mut search_paths = Vec::with_capacity(libraries.len() + 1);
+        search_paths.push(self.current_location.clone());
+        search_paths.extend_from_slice(libraries);
+        log::info!("Libraries: {:?}", search_paths);
+
+        if let Some(found_path) = search_paths.par_iter().find_map_any(|lib| {
+            let path = lib.join(name).clean();
             log::info!("Checking path: {:?}", path);
-            let canonical_str = path
-                .to_str()
-                .ok_or(produce_report_with_message(ReportCode::FileOs, path.display().to_string()))?
-                .to_string();
-            log::info!("Canonical path: {:?}", canonical_str);
-            let canonical_str = normalize_path(&canonical_str);
-            log::info!("Normalized path: {:?}", canonical_str);
-            let canonical_path_buf = PathBuf::from(canonical_str.clone());
-            if files_map.contains_key(&canonical_str) {
-                if !f_stack.black_paths.contains(&canonical_path_buf) {
-                    f_stack.stack.push(canonical_path_buf.clone());
-                }
-                return Result::Ok(canonical_str);
+
+            let path_str = match path.to_str() {
+                Some(s) => s,
+                None => return None,
+            };
+            log::info!("Canonical path: {:?}", path_str);
+
+            if files_map.contains_key(path_str) {
+                Some(path.clone())
             } else {
-                log::info!("files_map keys: {:?}", files_map.keys());
+                None
             }
-            // }
-            // }
+        }) {
+            if !self.black_paths.contains(&found_path) {
+                self.stack.push(found_path.clone());
+            }
+            return Ok(found_path);
         }
+
         log::info!("Include not found: {}", name);
-        Result::Err(produce_report_with_message(ReportCode::IncludeNotFound, name))
+        Err(produce_report_with_message(ReportCode::IncludeNotFound, name.to_string()))
     }
 
-    pub fn take_next(f_stack: &mut FileStack) -> Option<PathBuf> {
-        loop {
-            match f_stack.stack.pop() {
-                None => {
-                    break None;
-                }
-                Some(file) if !f_stack.black_paths.contains(&file) => {
-                    f_stack.current_location = file.clone();
-                    f_stack.current_location.pop();
-                    f_stack.black_paths.insert(file.clone());
-                    break Some(file);
-                }
-                _ => {}
+    pub fn take_next(&mut self) -> Option<PathBuf> {
+        while let Some(file) = self.stack.pop() {
+            if !self.black_paths.contains(&file) {
+                self.current_location =
+                    file.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
+                self.black_paths.insert(file.clone());
+                return Some(file);
             }
         }
+        None
     }
 }
 
@@ -120,28 +104,24 @@ impl IncludesGraph {
     }
 
     pub fn add_node(&mut self, path: PathBuf, custom_gates_pragma: bool, custom_gates_usage: bool) {
-        self.nodes.push(IncludesNode { path, custom_gates_pragma });
+        self.nodes.push(IncludesNode { path: path.clone(), custom_gates_pragma });
         if custom_gates_usage {
             self.custom_gates_nodes.push(self.nodes.len() - 1);
         }
     }
 
-    pub fn add_edge(&mut self, old_path: String) -> Result<(), Report> {
-        log::info!("Adding edge: {}", old_path);
-        let path = normalize_path(&old_path);
-        log::info!("Normalized path: {}", path);
-        let path = PathBuf::from(&path).clean();
+    pub fn add_edge(&mut self, path: PathBuf) {
+        log::info!("Adding edge: {:?}", path);
+        let path = path.clean();
         let edges = self.adjacency.entry(path).or_default();
         edges.push(self.nodes.len() - 1);
-        Ok(())
     }
 
     pub fn get_problematic_paths(&self) -> Vec<Vec<PathBuf>> {
-        let mut problematic_paths = Vec::new();
-        for from in &self.custom_gates_nodes {
-            problematic_paths.append(&mut self.traverse(*from, Vec::new(), HashSet::new()));
-        }
-        problematic_paths
+        self.custom_gates_nodes
+            .par_iter()
+            .flat_map(|&from| self.traverse(from, Vec::new(), HashSet::new()))
+            .collect()
     }
 
     fn traverse(
@@ -151,51 +131,42 @@ impl IncludesGraph {
         traversed_edges: HashSet<(usize, usize)>,
     ) -> Vec<Vec<PathBuf>> {
         let mut problematic_paths = Vec::new();
-        let (from_path, using_pragma) = {
-            let node = &self.nodes[from];
-            (&node.path, node.custom_gates_pragma)
-        };
-        let new_path = {
-            let mut new_path = path.clone();
-            new_path.push(from_path.clone());
-            new_path
-        };
+        let node = &self.nodes[from];
+        let from_path = &node.path;
+        let using_pragma = node.custom_gates_pragma;
+
+        let mut new_path = path.clone();
+        new_path.push(from_path.clone());
+
         if !using_pragma {
             problematic_paths.push(new_path.clone());
         }
+
         if let Some(edges) = self.adjacency.get(from_path) {
-            for to in edges {
-                let edge = (from, *to);
-                if !traversed_edges.contains(&edge) {
-                    let new_traversed_edges = {
+            let results: Vec<Vec<PathBuf>> = edges
+                .par_iter()
+                .filter_map(|&to| {
+                    let edge = (from, to);
+                    if !traversed_edges.contains(&edge) {
                         let mut new_traversed_edges = traversed_edges.clone();
                         new_traversed_edges.insert(edge);
-                        new_traversed_edges
-                    };
-                    problematic_paths.append(&mut self.traverse(
-                        *to,
-                        new_path.clone(),
-                        new_traversed_edges,
-                    ));
-                }
-            }
+                        Some(self.traverse(to, new_path.clone(), new_traversed_edges))
+                    } else {
+                        None
+                    }
+                })
+                .flatten()
+                .collect();
+            problematic_paths.extend(results);
         }
+
         problematic_paths
     }
 
-    pub fn display_path(path: &Vec<PathBuf>) -> String {
-        let mut res = String::new();
-        let mut sep = "";
-        for file in path.iter().map(|file| file.display().to_string()) {
-            res.push_str(sep);
-            let result_split = file.rsplit_once("/");
-            if result_split.is_some() {
-                res.push_str(result_split.unwrap().1);
-            } else {
-                res.push_str(&file);
-            }
-            sep = " -> ";
-        }
-        res
+    pub fn display_path(path: &[PathBuf]) -> String {
+        path.iter()
+            .map(|file| file.file_name().unwrap_or_else(|| file.as_os_str()).to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" -> ")
     }
 }

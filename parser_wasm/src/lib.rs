@@ -31,26 +31,32 @@ use program_structure::file_definition::FileLibrary;
 use program_structure::program_archive::ProgramArchive;
 use crate::include_logic::{FileStack, IncludesGraph};
 use crate::syntax_sugar_remover::apply_syntactic_sugar;
+use rayon::prelude::*;
 
 pub fn find_file(
     crr_file: &Path,
     ext_link_libraries: &[PathBuf],
     files_map: &HashMap<String, String>,
 ) -> Result<(String, String, PathBuf), Vec<Report>> {
-    let mut reports = Vec::new();
+    let results: Vec<_> = ext_link_libraries
+        .par_iter()
+        .map(|aux| {
+            let p = aux.join(crr_file);
+            match open_file(&p, files_map) {
+                Ok((new_path, new_src)) => Ok((new_path, new_src, p)),
+                Err(e) => Err(e),
+            }
+        })
+        .collect();
 
-    for aux in ext_link_libraries {
-        let p = aux.join(crr_file);
-        match open_file(&p, files_map) {
-            Ok((new_path, new_src)) => {
-                return Ok((new_path, new_src, p));
-            }
-            Err(e) => {
-                reports.push(e);
-            }
-        }
+    // Find the first successful result
+    if let Some(success) = results.iter().find_map(|res| res.as_ref().ok()) {
+        Ok(success.clone())
+    } else {
+        // Collect all error reports
+        let reports: Vec<Report> = results.into_iter().filter_map(Result::err).collect();
+        Err(reports)
     }
-    Err(reports)
 }
 
 pub fn run_parser(
@@ -100,12 +106,12 @@ pub fn run_parser(
             log::info!("Including file {}", include);
             let path_include = FileStack::add_include(
                 &mut file_stack,
-                include.clone(),
+                &include.clone(),
                 &link_libraries,
                 files_map,
             )
             .map_err(|e| (file_library.clone(), vec![e]))?;
-            includes_graph.add_edge(path_include).map_err(|e| (file_library.clone(), vec![e]))?;
+            includes_graph.add_edge(path_include);
         }
 
         warnings.extend(
