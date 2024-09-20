@@ -8,81 +8,69 @@ use program_structure::ast::produce_report;
 use program_structure::error_code::ReportCode;
 use program_structure::error_definition::{ReportCollection, Report};
 use program_structure::file_definition::FileID;
+use rayon::prelude::*;
 
 pub fn preprocess(expr: &str, file_id: FileID) -> Result<String, ReportCollection> {
-    let mut pp = String::new();
+    let bytes = expr.as_bytes();
+    let mut comment_ranges = Vec::new();
+    let mut i = 0;
     let mut state = 0;
-    let mut loc = 0;
     let mut block_start = 0;
 
-    let mut it = expr.chars();
-    while let Some(c0) = it.next() {
-        loc += 1;
-        match (state, c0) {
-            (0, '/') => {
-                loc += 1;
-                match it.next() {
-                    Some('/') => {
-                        state = 1;
-                        pp.push(' ');
-                        pp.push(' ');
-                    }
-                    Some('*') => {
-                        block_start = loc;
-                        state = 2;
-                        pp.push(' ');
-                        pp.push(' ');
-                    }
-                    Some(c1) => {
-                        pp.push(c0);
-                        pp.push(c1);
-                    }
-                    None => {
-                        pp.push(c0);
-                        break;
-                    }
-                }
-            }
-            (0, _) => pp.push(c0),
-            (1, '\n') => {
-                pp.push(c0);
-                state = 0;
-            }
-            (2, '*') => {
-                loc += 1;
-                let mut next = it.next();
-                while next == Some('*') {
-                    pp.push(' ');
-                    loc += 1;
-                    next = it.next();
-                }
-                match next {
-                    Some('/') => {
-                        pp.push(' ');
-                        pp.push(' ');
-                        state = 0;
-                    }
-                    Some(c) => {
-                        pp.push(' ');
-                        for _i in 0..c.len_utf8() {
-                            pp.push(' ');
+    while i < bytes.len() {
+        match state {
+            0 => {
+                if bytes[i] == b'/' && i + 1 < bytes.len() {
+                    if bytes[i + 1] == b'/' {
+                        // Line comment
+                        let start = i;
+                        i += 2;
+                        while i < bytes.len() && bytes[i] != b'\n' {
+                            i += 1;
                         }
+                        comment_ranges.push(start..i);
+                    } else if bytes[i + 1] == b'*' {
+                        // Block comment
+                        block_start = i;
+                        i += 2;
+                        state = 2;
+                    } else {
+                        i += 1;
                     }
-                    None => {}
+                } else {
+                    i += 1;
                 }
             }
-            (_, c) => {
-                for _i in 0..c.len_utf8() {
-                    pp.push(' ');
+            2 => {
+                if bytes[i] == b'*' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
+                    i += 2;
+                    comment_ranges.push(block_start..i);
+                    state = 0;
+                } else {
+                    i += 1;
                 }
             }
+            _ => i += 1,
         }
     }
+
     if state == 2 {
-        Err(vec![produce_report(ReportCode::UnclosedComment, block_start..block_start, file_id)])
-    } else {
-        Ok(pp)
+        return Err(vec![produce_report(
+            ReportCode::UnclosedComment,
+            block_start..block_start,
+            file_id,
+        )]);
     }
+
+    let mut pp = bytes.to_vec();
+    let comment_ranges = &comment_ranges; // Make borrow explicit for the closure
+    pp.par_iter_mut().enumerate().for_each(|(idx, byte)| {
+        if comment_ranges.iter().any(|range| range.contains(&idx)) {
+            *byte = b' ';
+        }
+    });
+
+    Ok(String::from_utf8(pp).unwrap())
 }
 
 pub fn parse_file(src: &str, file_id: FileID) -> Result<AST, ReportCollection> {
